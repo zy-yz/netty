@@ -48,8 +48,11 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(DefaultChannelPipeline.class);
     private static final String HEAD_NAME = generateName0(HeadHandler.class);
     private static final String TAIL_NAME = generateName0(TailHandler.class);
+    private static final String NULL_NAME = generateName0(NullHandler.class);
+
     private static final ChannelHandler HEAD_HANDLER = new HeadHandler();
     private static final ChannelHandler TAIL_HANDLER = new TailHandler();
+    private static final ChannelHandler NULL_HANDLER = new NullHandler();
 
     private static final FastThreadLocal<Map<Class<?>, String>> nameCaches =
             new FastThreadLocal<Map<Class<?>, String>>() {
@@ -64,6 +67,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
                     DefaultChannelPipeline.class, MessageSizeEstimator.Handle.class, "estimatorHandle");
     private final DefaultChannelHandlerContext head;
     private final DefaultChannelHandlerContext tail;
+    private final DefaultChannelHandlerContext nullCtx;
+
     private final Channel channel;
     private final ChannelFuture succeededFuture;
     private final VoidChannelPromise voidPromise;
@@ -79,11 +84,14 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         tail = new DefaultChannelHandlerContext(this, TAIL_NAME, TAIL_HANDLER);
         head = new DefaultChannelHandlerContext(this, HEAD_NAME, HEAD_HANDLER);
+        nullCtx = new DefaultChannelHandlerContext(this, NULL_NAME, NULL_HANDLER);
 
         head.next = tail;
         tail.prev = head;
         head.setAddComplete();
         tail.setAddComplete();
+
+        nullCtx.setAddComplete();
     }
 
     final MessageSizeEstimator.Handle estimatorHandle() {
@@ -496,7 +504,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return (T) ctx.handler();
     }
 
-    private void unlink(DefaultChannelHandlerContext ctx) {
+    private void relink(DefaultChannelHandlerContext ctx) {
         assert ctx != head && ctx != tail;
         DefaultChannelHandlerContext prev = ctx.prev;
         DefaultChannelHandlerContext next = ctx.next;
@@ -504,9 +512,18 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         next.prev = prev;
     }
 
+    private void unlink(DefaultChannelHandlerContext ctx) {
+        ctx.next = nullCtx;
+        ctx.prev = nullCtx;
+    }
+
     private void remove0(DefaultChannelHandlerContext ctx) {
-        unlink(ctx);
-        callHandlerRemoved0(ctx);
+        relink(ctx);
+        try {
+            callHandlerRemoved0(ctx);
+        } finally {
+            unlink(ctx);
+        }
     }
 
     @Override
@@ -615,7 +632,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
                     handlers.remove(ctx);
                 }
 
-                unlink(ctx);
+                relink(ctx);
                 ctx.callHandlerRemoved();
 
                 removed = true;
@@ -623,6 +640,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
                 if (logger.isWarnEnabled()) {
                     logger.warn("Failed to remove a handler: " + ctx.name(), t2);
                 }
+            } finally {
+                unlink(ctx);
             }
 
             if (removed) {
@@ -833,9 +852,10 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             synchronized (handlers) {
                 handlers.remove(ctx);
             }
+            DefaultChannelHandlerContext prev = ctx.prev;
             remove0(ctx);
 
-            ctx = ctx.prev;
+            ctx = prev;
         }
     }
 
@@ -1096,7 +1116,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     // A special catch-all handler that handles both bytes and messages.
-    private static final class TailHandler implements ChannelInboundHandler {
+    private static final class TailHandler implements ChannelHandler {
 
         @Override
         public void channelRegistered(ChannelHandlerContext ctx) { }
@@ -1205,6 +1225,112 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             if (!ctx.channel().isOpen()) {
                 ((DefaultChannelPipeline) ctx.pipeline()).destroy();
             }
+        }
+    }
+
+    private static final class NullHandler implements ChannelHandler {
+        private static final InternalLogger logger = InternalLoggerFactory.getInstance(NullHandler.class);
+
+        @Override
+        public void channelRegistered(ChannelHandlerContext ctx) {
+            logRemoved();
+        }
+
+        @Override
+        public void channelUnregistered(ChannelHandlerContext ctx) {
+            logRemoved();
+        }
+
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) {
+            logRemoved();
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) {
+            logRemoved();
+        }
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            ReferenceCountUtil.release(msg);
+            logRemoved();
+        }
+
+        @Override
+        public void channelReadComplete(ChannelHandlerContext ctx) {
+            logRemoved();
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+            ReferenceCountUtil.release(evt);
+            logRemoved();
+        }
+
+        @Override
+        public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+            logRemoved();
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            logRemoved();
+        }
+
+        @Override
+        public void bind(ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise) {
+            fail(promise);
+        }
+
+        @Override
+        public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress,
+                            SocketAddress localAddress, ChannelPromise promise) {
+            fail(promise);
+        }
+
+        @Override
+        public void disconnect(ChannelHandlerContext ctx, ChannelPromise promise) {
+            fail(promise);
+        }
+
+        @Override
+        public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
+            fail(promise);
+        }
+
+        @Override
+        public void register(ChannelHandlerContext ctx, ChannelPromise promise) {
+            fail(promise);
+        }
+
+        @Override
+        public void deregister(ChannelHandlerContext ctx, ChannelPromise promise) {
+            fail(promise);
+        }
+
+        @Override
+        public void read(ChannelHandlerContext ctx) { }
+
+        @Override
+        public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+            ReferenceCountUtil.release(msg);
+            fail(promise);
+        }
+
+        @Override
+        public void flush(ChannelHandlerContext ctx) { }
+
+        private static void fail(ChannelPromise promise) {
+            promise.setFailure(newException());
+        }
+
+        private static void logRemoved() {
+            logger.warn("Handler already removed", newException());
+        }
+
+        private static ChannelPipelineException newException() {
+            return new ChannelPipelineException("Handler already removed");
         }
     }
 }
