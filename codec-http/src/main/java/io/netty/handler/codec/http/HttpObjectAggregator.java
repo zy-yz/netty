@@ -266,7 +266,7 @@ public class HttpObjectAggregator
                 });
             }
         } else if (oversized instanceof HttpResponse) {
-            throw new TooLongFrameException("Response entity too large: " + oversized);
+            throw new ResponseTooLargeException("Response entity too large: " + oversized);
         } else {
             throw new IllegalStateException();
         }
@@ -275,8 +275,14 @@ public class HttpObjectAggregator
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         super.exceptionCaught(ctx, cause);
-        if (cause instanceof TooLongFrameException) {
+        if (cause instanceof ResponseTooLargeException) {
             ctx.close();
+        }
+    }
+
+    private static final class ResponseTooLargeException extends TooLongFrameException {
+        ResponseTooLargeException(String message) {
+            super(message);
         }
     }
 

@@ -17,6 +17,7 @@ package io.netty.handler.codec.http.websocketx;
 
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandler;
 import io.netty.channel.ChannelPipeline;
@@ -45,7 +46,6 @@ import static io.netty.handler.codec.http.HttpVersion.*;
 class WebSocketServerProtocolHandshakeHandler implements ChannelInboundHandler {
 
     private final WebSocketServerProtocolConfig serverConfig;
-    private ChannelHandlerContext ctx;
     private ChannelPromise handshakePromise;
 
     WebSocketServerProtocolHandshakeHandler(WebSocketServerProtocolConfig serverConfig) {
@@ -54,7 +54,6 @@ class WebSocketServerProtocolHandshakeHandler implements ChannelInboundHandler {
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
-        this.ctx = ctx;
         handshakePromise = ctx.newPromise();
     }
 
@@ -86,25 +85,28 @@ class WebSocketServerProtocolHandshakeHandler implements ChannelInboundHandler {
                 //
                 // See https://github.com/netty/netty/issues/9471.
                 WebSocketServerProtocolHandler.setHandshaker(ctx.channel(), handshaker);
-                ctx.pipeline().replace(this, "WS403Responder",
-                        WebSocketServerProtocolHandler.forbiddenHttpRequestResponder());
+                ChannelHandler handler = WebSocketServerProtocolHandler.forbiddenHttpRequestResponder();
 
                 final ChannelFuture handshakeFuture = handshaker.handshake(ctx.channel(), req);
+                ctx.pipeline().replace(this, "WS403Responder", handler);
+
+                ChannelHandlerContext responderCtx = ctx.pipeline().context(handler);
+
                 handshakeFuture.addListener((ChannelFutureListener) future -> {
                     if (!future.isSuccess()) {
                         localHandshakePromise.tryFailure(future.cause());
-                        ctx.fireExceptionCaught(future.cause());
+                        responderCtx.fireExceptionCaught(future.cause());
                     } else {
                         localHandshakePromise.trySuccess();
                         // Kept for compatibility
-                        ctx.fireUserEventTriggered(
+                        responderCtx.fireUserEventTriggered(
                                 WebSocketServerProtocolHandler.ServerHandshakeStateEvent.HANDSHAKE_COMPLETE);
-                        ctx.fireUserEventTriggered(
+                        responderCtx.fireUserEventTriggered(
                                 new WebSocketServerProtocolHandler.HandshakeComplete(
                                         req.uri(), req.headers(), handshaker.selectedSubprotocol()));
                     }
                 });
-                applyHandshakeTimeout();
+                applyHandshakeTimeout(ctx);
             }
         } finally {
             req.release();
@@ -133,7 +135,7 @@ class WebSocketServerProtocolHandshakeHandler implements ChannelInboundHandler {
         return protocol + "://" + host + path;
     }
 
-    private void applyHandshakeTimeout() {
+    private void applyHandshakeTimeout(ChannelHandlerContext ctx) {
         final ChannelPromise localHandshakePromise = handshakePromise;
         final long handshakeTimeoutMillis = serverConfig.handshakeTimeoutMillis();
         if (handshakeTimeoutMillis <= 0 || localHandshakePromise.isDone()) {
@@ -145,7 +147,7 @@ class WebSocketServerProtocolHandshakeHandler implements ChannelInboundHandler {
             public void run() {
                 if (!localHandshakePromise.isDone() &&
                         localHandshakePromise.tryFailure(new WebSocketHandshakeException("handshake timed out"))) {
-                    ctx.flush()
+                    ctx.pipeline().flush()
                        .fireUserEventTriggered(ServerHandshakeStateEvent.HANDSHAKE_TIMEOUT)
                        .close();
                 }
