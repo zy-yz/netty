@@ -67,7 +67,6 @@ public class DefaultChannelPipeline implements ChannelPipeline {
                     DefaultChannelPipeline.class, MessageSizeEstimator.Handle.class, "estimatorHandle");
     private final DefaultChannelHandlerContext head;
     private final DefaultChannelHandlerContext tail;
-    private final DefaultChannelHandlerContext nullCtx;
 
     private final Channel channel;
     private final ChannelFuture succeededFuture;
@@ -84,14 +83,11 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         tail = new DefaultChannelHandlerContext(this, TAIL_NAME, TAIL_HANDLER);
         head = new DefaultChannelHandlerContext(this, HEAD_NAME, HEAD_HANDLER);
-        nullCtx = new DefaultChannelHandlerContext(this, NULL_NAME, NULL_HANDLER);
 
         head.next = tail;
         tail.prev = head;
         head.setAddComplete();
         tail.setAddComplete();
-
-        nullCtx.setAddComplete();
     }
 
     final MessageSizeEstimator.Handle estimatorHandle() {
@@ -513,8 +509,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     private void unlink(DefaultChannelHandlerContext ctx) {
-        ctx.next = nullCtx;
-        ctx.prev = nullCtx;
+        ctx.next = null;
+        ctx.prev = null;
     }
 
     private void remove0(DefaultChannelHandlerContext ctx) {

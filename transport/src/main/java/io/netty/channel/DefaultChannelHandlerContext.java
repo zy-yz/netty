@@ -76,6 +76,19 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
         this.handler = handler;
     }
 
+
+    private static void failRemoved(ChannelPromise promise) {
+        promise.setFailure(newRemovedException());
+    }
+
+    private void logRemoved() {
+        logger.warn("Handler " + this + " already removed", newRemovedException());
+    }
+
+    private static ChannelPipelineException newRemovedException() {
+        return new ChannelPipelineException("Handler already removed");
+    }
+
     private Tasks invokeTasks() {
         Tasks tasks = invokeTasks;
         if (tasks == null) {
@@ -126,7 +139,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeChannelRegistered() {
-        findContextInbound(MASK_CHANNEL_REGISTERED).invokeChannelRegistered();
+        DefaultChannelHandlerContext ctx = findContextInbound(MASK_CHANNEL_REGISTERED);
+        if (ctx == null) {
+            logRemoved();
+            return;
+        }
+        ctx.invokeChannelRegistered();
     }
 
     void invokeChannelRegistered() {
@@ -149,7 +167,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeChannelUnregistered() {
-        findContextInbound(MASK_CHANNEL_UNREGISTERED).invokeChannelUnregistered();
+        DefaultChannelHandlerContext ctx = findContextInbound(MASK_CHANNEL_UNREGISTERED);
+        if (ctx == null) {
+            logRemoved();
+            return;
+        }
+        ctx.invokeChannelUnregistered();
     }
 
     void invokeChannelUnregistered() {
@@ -172,7 +195,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeChannelActive() {
-        findContextInbound(MASK_CHANNEL_ACTIVE).invokeChannelActive();
+        DefaultChannelHandlerContext ctx = findContextInbound(MASK_CHANNEL_ACTIVE);
+        if (ctx == null) {
+            logRemoved();
+            return;
+        }
+        ctx.invokeChannelActive();
     }
 
     void invokeChannelActive() {
@@ -195,7 +223,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeChannelInactive() {
-        findContextInbound(MASK_CHANNEL_INACTIVE).invokeChannelInactive();
+        DefaultChannelHandlerContext ctx = findContextInbound(MASK_CHANNEL_INACTIVE);
+        if (ctx == null) {
+            logRemoved();
+            return;
+        }
+        ctx.invokeChannelInactive();
     }
 
     void invokeChannelInactive() {
@@ -226,7 +259,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeExceptionCaught(Throwable cause) {
-        findContextInbound(MASK_EXCEPTION_CAUGHT).invokeExceptionCaught(cause);
+        DefaultChannelHandlerContext ctx = findContextInbound(MASK_EXCEPTION_CAUGHT);
+        if (ctx == null) {
+            logRemoved();
+            return;
+        }
+        ctx.invokeExceptionCaught(cause);
     }
 
     void invokeExceptionCaught(final Throwable cause) {
@@ -261,7 +299,13 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeUserEventTriggered(Object event) {
-        findContextInbound(MASK_USER_EVENT_TRIGGERED).invokeUserEventTriggered(event);
+        DefaultChannelHandlerContext ctx = findContextInbound(MASK_USER_EVENT_TRIGGERED);
+        if (ctx == null) {
+            ReferenceCountUtil.release(event);
+            logRemoved();
+            return;
+        }
+        ctx.invokeUserEventTriggered(event);
     }
 
     void invokeUserEventTriggered(Object event) {
@@ -290,7 +334,13 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeChannelRead(Object msg) {
-        findContextInbound(MASK_CHANNEL_READ).invokeChannelRead(msg);
+        DefaultChannelHandlerContext ctx = findContextInbound(MASK_CHANNEL_READ);
+        if (ctx == null) {
+            ReferenceCountUtil.release(msg);
+            logRemoved();
+            return;
+        }
+        ctx.invokeChannelRead(msg);
     }
 
     void invokeChannelRead(Object msg) {
@@ -315,7 +365,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeChannelReadComplete() {
-        findContextInbound(MASK_CHANNEL_READ_COMPLETE).invokeChannelReadComplete();
+        DefaultChannelHandlerContext ctx = findContextInbound(MASK_CHANNEL_READ_COMPLETE);
+        if (ctx == null) {
+            logRemoved();
+            return;
+        }
+        ctx.invokeChannelReadComplete();
     }
 
     void invokeChannelReadComplete() {
@@ -339,7 +394,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeChannelWritabilityChanged() {
-        findContextInbound(MASK_CHANNEL_WRITABILITY_CHANGED).invokeChannelWritabilityChanged();
+        DefaultChannelHandlerContext ctx = findContextInbound(MASK_CHANNEL_WRITABILITY_CHANGED);
+        if (ctx == null) {
+            logRemoved();
+            return;
+        }
+        ctx.invokeChannelWritabilityChanged();
     }
 
     void invokeChannelWritabilityChanged() {
@@ -403,7 +463,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeBind(SocketAddress localAddress, ChannelPromise promise) {
-        findContextOutbound(MASK_BIND).invokeBind(localAddress, promise);
+        DefaultChannelHandlerContext ctx = findContextOutbound(MASK_BIND);
+        if (ctx == null) {
+            failRemoved(promise);
+            return;
+        }
+        ctx.invokeBind(localAddress, promise);
     }
 
     private void invokeBind(SocketAddress localAddress, ChannelPromise promise) {
@@ -438,7 +503,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeConnect(SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
-        findContextOutbound(MASK_CONNECT).invokeConnect(remoteAddress, localAddress, promise);
+        DefaultChannelHandlerContext ctx = findContextOutbound(MASK_CONNECT);
+        if (ctx == null) {
+            failRemoved(promise);
+            return;
+        }
+        ctx.invokeConnect(remoteAddress, localAddress, promise);
     }
 
     private void invokeConnect(SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
@@ -472,7 +542,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeDisconnect(ChannelPromise promise) {
-        findContextOutbound(MASK_DISCONNECT).invokeDisconnect(promise);
+        DefaultChannelHandlerContext ctx = findContextOutbound(MASK_DISCONNECT);
+        if (ctx == null) {
+            failRemoved(promise);
+            return;
+        }
+        ctx.invokeDisconnect(promise);
     }
 
     private void invokeDisconnect(ChannelPromise promise) {
@@ -500,7 +575,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeClose(ChannelPromise promise) {
-        findContextOutbound(MASK_CLOSE).invokeClose(promise);
+        DefaultChannelHandlerContext ctx = findContextOutbound(MASK_CLOSE);
+        if (ctx == null) {
+            failRemoved(promise);
+            return;
+        }
+        ctx.invokeClose(promise);
     }
 
     private void invokeClose(ChannelPromise promise) {
@@ -528,7 +608,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeRegister(ChannelPromise promise) {
-        findContextOutbound(MASK_REGISTER).invokeRegister(promise);
+        DefaultChannelHandlerContext ctx = findContextOutbound(MASK_REGISTER);
+        if (ctx == null) {
+            failRemoved(promise);
+            return;
+        }
+        ctx.invokeRegister(promise);
     }
 
     private void invokeRegister(ChannelPromise promise) {
@@ -556,7 +641,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeDeregister(ChannelPromise promise) {
-        findContextOutbound(MASK_DEREGISTER).invokeDeregister(promise);
+        DefaultChannelHandlerContext ctx = findContextOutbound(MASK_DEREGISTER);
+        if (ctx == null) {
+            failRemoved(promise);
+            return;
+        }
+        ctx.invokeDeregister(promise);
     }
 
     private void invokeDeregister(ChannelPromise promise) {
@@ -580,7 +670,10 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeRead() {
-        findContextOutbound(MASK_READ).invokeRead();
+        DefaultChannelHandlerContext ctx = findContextOutbound(MASK_READ);
+        if (ctx != null) {
+            ctx.invokeRead();
+        }
     }
 
     private void invokeRead() {
@@ -595,7 +688,12 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
         if ((executionMask & MASK_EXCEPTION_CAUGHT) != 0) {
             notifyHandlerException(t);
         } else {
-            findContextInbound(MASK_EXCEPTION_CAUGHT).notifyHandlerException(t);
+            DefaultChannelHandlerContext ctx = findContextInbound(MASK_EXCEPTION_CAUGHT);
+            if (ctx == null) {
+                logRemoved();
+                return;
+            }
+            ctx.invokeExceptionCaught(t);
         }
     }
 
@@ -634,7 +732,10 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     }
 
     private void findAndInvokeFlush() {
-        findContextOutbound(MASK_FLUSH).invokeFlush();
+        DefaultChannelHandlerContext ctx = findContextOutbound(MASK_FLUSH);
+        if (ctx != null) {
+            ctx.invokeFlush();
+        }
     }
 
     private void invokeFlush() {
@@ -673,6 +774,11 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
         if (executor.inEventLoop()) {
             final DefaultChannelHandlerContext next = findContextOutbound(flush ?
                     (MASK_WRITE | MASK_FLUSH) : MASK_WRITE);
+            if (next == null) {
+                ReferenceCountUtil.release(msg);
+                failRemoved(promise);
+                return;
+            }
             if (flush) {
                 next.invokeWriteAndFlush(msg, promise);
             } else {
@@ -796,6 +902,9 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
 
     private DefaultChannelHandlerContext findContextInbound(int mask) {
         DefaultChannelHandlerContext ctx = this;
+        if (ctx.next == null) {
+            return null;
+        }
         do {
             ctx = ctx.next;
         } while ((ctx.executionMask & mask) == 0);
@@ -804,6 +913,9 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
 
     private DefaultChannelHandlerContext findContextOutbound(int mask) {
         DefaultChannelHandlerContext ctx = this;
+        if (ctx.prev == null) {
+            return null;
+        }
         do {
             ctx = ctx.prev;
         } while ((ctx.executionMask & mask) == 0);
@@ -931,6 +1043,11 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
             try {
                 decrementPendingOutboundBytes();
                 DefaultChannelHandlerContext next = findContext(ctx);
+                if (next == null) {
+                    ReferenceCountUtil.release(msg);
+                    failRemoved(promise);
+                    return;
+                }
                 write(next, msg, promise);
             } finally {
                 recycle();
