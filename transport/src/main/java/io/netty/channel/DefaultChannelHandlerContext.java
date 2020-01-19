@@ -76,17 +76,20 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
         this.handler = handler;
     }
 
-
     private static void failRemoved(ChannelPromise promise) {
-        promise.setFailure(newRemovedException());
+        promise.setFailure(newRemovedException(null));
     }
 
     private void logRemoved() {
-        logger.warn("Handler " + this + " already removed", newRemovedException());
+        logRemoved(null);
     }
 
-    private static ChannelPipelineException newRemovedException() {
-        return new ChannelPipelineException("Handler already removed");
+    private void logRemoved(Throwable cause) {
+        logger.warn("Handler " + this + " already removed", newRemovedException(cause));
+    }
+
+    private static ChannelPipelineException newRemovedException(Throwable cause) {
+        return new ChannelPipelineException("Handler already removed", cause);
     }
 
     private Tasks invokeTasks() {
@@ -261,7 +264,7 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     private void findAndInvokeExceptionCaught(Throwable cause) {
         DefaultChannelHandlerContext ctx = findContextInbound(MASK_EXCEPTION_CAUGHT);
         if (ctx == null) {
-            logRemoved();
+            logRemoved(cause);
             return;
         }
         ctx.invokeExceptionCaught(cause);

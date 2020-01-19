@@ -49,12 +49,13 @@ public abstract class OcspClientHandler implements ChannelInboundHandler {
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof SslHandshakeCompletionEvent) {
-            ctx.pipeline().remove(this);
-
             SslHandshakeCompletionEvent event = (SslHandshakeCompletionEvent) evt;
             if (event.isSuccess() && !verify(ctx, engine)) {
                 throw new SSLHandshakeException("Bad OCSP response");
             }
+            ctx.fireUserEventTriggered(evt);
+            ctx.pipeline().remove(this);
+            return;
         }
 
         ctx.fireUserEventTriggered(evt);

@@ -1080,7 +1080,8 @@ public class SslHandler extends ByteToMessageDecoder {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                         "{} Swallowing a harmless 'connection reset by peer / broken pipe' error that occurred " +
-                        "while writing close_notify in response to the peer's close_notify", ctx.channel(), cause);
+                                "while writing close_notify in response to the peer's close_notify",
+                        ctx.channel(), cause);
             }
 
             // Close the connection explicitly just in case the transport
@@ -1090,6 +1091,11 @@ public class SslHandler extends ByteToMessageDecoder {
             }
         } else {
             ctx.fireExceptionCaught(cause);
+
+            if (cause instanceof SSLException ||
+                    ((cause instanceof DecoderException) && cause.getCause() instanceof SSLException)) {
+                ctx.close();
+            }
         }
     }
 
@@ -2195,6 +2201,14 @@ public class SslHandler extends ByteToMessageDecoder {
                 return;
             }
             checkDeadLock(ctx.executor());
+        }
+
+        @Override
+        public EventExecutor executor() {
+            if (ctx == null) {
+                return super.executor();
+            }
+            return ctx.executor();
         }
     }
 }

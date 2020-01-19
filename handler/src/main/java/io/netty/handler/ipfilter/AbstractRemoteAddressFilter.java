@@ -79,12 +79,11 @@ public abstract class AbstractRemoteAddressFilter<T extends SocketAddress> imple
                     ctx.fireChannelActive();
                 }
                 if (remove) {
-                    // No need to keep this handler in the pipeline anymore because the decision is going to be made now.
-                    // Also, this will prevent the subsequent events from being handled by this handler.
+                    // No need to keep this handler in the pipeline anymore because the decision is going to be made
+                    // now. Also, this will prevent the subsequent events from being handled by this handler.
                     ctx.pipeline().remove(this);
                 }
             }
-
         }
     }
 

@@ -836,16 +836,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
      * Removes all handlers from the pipeline one by one from tail (exclusive) to head (exclusive) to trigger
      * handlerRemoved().
      */
-    private void destroy() {
-        EventExecutor executor = executor();
-        if (executor.inEventLoop()) {
-            destroy0();
-        } else {
-            executor.execute(this::destroy0);
-        }
-    }
-
-    private void destroy0() {
+    void removeAll() {
         assert executor().inEventLoop();
         DefaultChannelHandlerContext ctx = this.tail.prev;
         while (ctx != head) {
@@ -1215,16 +1206,6 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         @Override
         public void flush(ChannelHandlerContext ctx) {
             ctx.channel().unsafe().flush();
-        }
-
-        @Override
-        public void channelUnregistered(ChannelHandlerContext ctx) {
-            ctx.fireChannelUnregistered();
-
-            // Remove all handlers sequentially if channel is closed and unregistered.
-            if (!ctx.channel().isOpen()) {
-                ((DefaultChannelPipeline) ctx.pipeline()).destroy();
-            }
         }
     }
 
