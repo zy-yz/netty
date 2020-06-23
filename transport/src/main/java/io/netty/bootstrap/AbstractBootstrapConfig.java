@@ -28,9 +28,14 @@ import java.util.Map;
 
 /**
  * Exposes the configuration of an {@link AbstractBootstrap}.
+ *
+ *
  */
 public abstract class AbstractBootstrapConfig<B extends AbstractBootstrap<B, C>, C extends Channel> {
 
+    //bootstrap属性，对应的启动类对象，
+    // 在每个方法中，都可以看见是直接调用bootstrap属性对应的方法，读取对应的配置
+    //每个 Config 类，对应一个 Bootstrap 类。
     protected final B bootstrap;
 
     protected AbstractBootstrapConfig(B bootstrap) {
