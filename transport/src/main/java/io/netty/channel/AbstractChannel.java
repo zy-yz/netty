@@ -69,9 +69,13 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
      *        the parent of this channel. {@code null} if there's no parent.
      */
     protected AbstractChannel(Channel parent) {
+        //父Channel对象，对于NioServerSocketChannnel的parent为空
         this.parent = parent;
+        //Channel编号对象。创建ChannelId对象
         id = newId();
+        //创建Unsafe对象，unsafe操作不允许被用户代码使用。这些函数是真正用于数据传输操作，必须在IO线程里面
         unsafe = newUnsafe();
+        //创建DefaultChannelPipeline对象
         pipeline = newChannelPipeline();
     }
 
@@ -452,18 +456,22 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         @Override
         public final void register(EventLoop eventLoop, final ChannelPromise promise) {
             ObjectUtil.checkNotNull(eventLoop, "eventLoop");
+            //校验未注册
             if (isRegistered()) {
                 promise.setFailure(new IllegalStateException("registered to an event loop already"));
                 return;
             }
+            //校验Channel和eventLoop匹配，因为有多种实现方式
             if (!isCompatible(eventLoop)) {
                 promise.setFailure(
                         new IllegalStateException("incompatible event loop type: " + eventLoop.getClass().getName()));
                 return;
             }
 
+            //设置Channel的EventLoop属性
             AbstractChannel.this.eventLoop = eventLoop;
 
+            //在EventLoop中执行注册逻辑
             if (eventLoop.inEventLoop()) {
                 register0(promise);
             } else {
@@ -492,16 +500,22 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 if (!promise.setUncancellable() || !ensureOpen(promise)) {
                     return;
                 }
+                //记录是否为首次注册
                 boolean firstRegistration = neverRegistered;
+                //执行注册逻辑
                 doRegister();
+                //标记首次注册为false
                 neverRegistered = false;
+                //标记Channel为已注册
                 registered = true;
 
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
                 pipeline.invokeHandlerAddedIfNeeded();
 
+                //回调通知，promise执行成功
                 safeSetSuccess(promise);
+                //触发通知已注册事件
                 pipeline.fireChannelRegistered();
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
@@ -526,7 +540,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
         @Override
         public final void bind(final SocketAddress localAddress, final ChannelPromise promise) {
-            assertEventLoop();
+            assertEventLoop(); //判断是否在EventLoop中
 
             if (!promise.setUncancellable() || !ensureOpen(promise)) {
                 return;
@@ -545,7 +559,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                         "address (" + localAddress + ") anyway as requested.");
             }
 
+            //记录Channel是否激活
             boolean wasActive = isActive();
+            //绑定Channel的端口
             try {
                 doBind(localAddress);
             } catch (Throwable t) {
@@ -554,7 +570,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            //如果Channel是最新激活的，触发通知Channel已激活的事件
             if (!wasActive && isActive()) {
+                //调用invokeLater方法，提交任务，异步化
                 invokeLater(new Runnable() {
                     @Override
                     public void run() {
@@ -563,6 +581,8 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 });
             }
 
+            //回调通知promise执行成功
+            //此处的通知，对应对调的是我们添加到bind()方法返回的ChannelFuture的ChannelFutureListener的监听器
             safeSetSuccess(promise);
         }
 
@@ -835,10 +855,12 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         public final void beginRead() {
             assertEventLoop();
 
+            //Channel必须激活
             if (!isActive()) {
                 return;
             }
 
+            //执行开始读取
             try {
                 doBeginRead();
             } catch (final Exception e) {
@@ -973,6 +995,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return true;
             }
 
+            //若未打开，毁掉通知promise异常
             safeSetFailure(promise, newClosedChannelException(initialCloseCause));
             return false;
         }

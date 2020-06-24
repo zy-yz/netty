@@ -306,6 +306,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     /**
      * Create a new {@link Channel} and bind it.
+     *
+     * bind 的逻辑，执行在 register 的逻辑之后。
      */
     public ChannelFuture bind(SocketAddress localAddress) {
         validate();
@@ -314,12 +316,13 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     private ChannelFuture doBind(final SocketAddress localAddress) {
         //初始化注册一个Channel对象，因为注册是异步的过程，所以返回一个ChannelFuture对象
-        final ChannelFuture regFuture = initAndRegister();
+        final ChannelFuture regFuture = initAndRegister();//调用initAndRegister()方法，初始化
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
             return regFuture;
         }
 
+        //绑定Channel的端口，并注册Channel 到SelectionKey中
         if (regFuture.isDone()) {
             // At this point we know that the registration was complete and successful.
             ChannelPromise promise = channel.newPromise();
@@ -349,15 +352,18 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
     }
 
+    //初始化并注册一个Channel对象，并返回一个ChannelFuture对象
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
+            //创建Channel对象
             channel = channelFactory.newChannel();
+            //初始化Channel配置
             init(channel);
         } catch (Throwable t) {
-            if (channel != null) {
+            if (channel != null) {  //因为初始化Channel对象失败，所以需要调用closeForcibly方法，强制关闭Channel
                 // channel can be null if newChannel crashed (eg SocketException("too many open files"))
-                channel.unsafe().closeForcibly();
+                channel.unsafe().closeForcibly(); //强制关闭Channel
                 // as the Channel is not registered yet we need to force the usage of the GlobalEventExecutor
                 return new DefaultChannelPromise(channel, GlobalEventExecutor.INSTANCE).setFailure(t);
             }
@@ -365,12 +371,15 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
+        //注册Channel到EventLoopGroup中
+        //首先获得EventLoopGroup对象，后调用EventLoopGroup.register(Channel)方法，注册到
+        //EventLoopGroup中，实际在方法内部，EventLoopGroup会分配一个EventLoop对象，将Channel注册到其上
         ChannelFuture regFuture = config().group().register(channel);
         if (regFuture.cause() != null) {
-            if (channel.isRegistered()) {
+            if (channel.isRegistered()) { //如果发生异常，并且Channel已经注册成功，就调用Close方法，正常关闭Channel
                 channel.close();
-            } else {
-                channel.unsafe().closeForcibly();
+            } else { //发生异常，Channel没有注册成功，则调用closeForcibly(0方法，强制关闭Channel
+                channel.unsafe().closeForcibly(); //强制关闭Channel
             }
         }
 
@@ -394,6 +403,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
         // This method is invoked before channelRegistered() is triggered.  Give user handlers a chance to set up
         // the pipeline in its channelRegistered() implementation.
+        //调用EventLoop执行Channel的端口绑定逻辑
         channel.eventLoop().execute(new Runnable() {
             @Override
             public void run() {

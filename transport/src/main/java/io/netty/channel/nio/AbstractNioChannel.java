@@ -50,7 +50,9 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     private static final InternalLogger logger =
             InternalLoggerFactory.getInstance(AbstractNioChannel.class);
 
+    //Netty NIO Channel对象，持有的Java原生NIO的Channel对象
     private final SelectableChannel ch;
+    //readInterestOP属性
     protected final int readInterestOp;
     volatile SelectionKey selectionKey;
     boolean readPending;
@@ -409,6 +411,9 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
         readPending = true;
 
+        //调用SelectionKey.interestOps()方法，将我们创建NioServerSocketChannel时，
+        //设置的readInterestOp = SelectionKey.OP_ACCEPT添加为感兴趣的事件，
+        //也就是，服务端可以开始处理客户端的连接事件
         final int interestOps = selectionKey.interestOps();
         if ((interestOps & readInterestOp) == 0) {
             selectionKey.interestOps(interestOps | readInterestOp);

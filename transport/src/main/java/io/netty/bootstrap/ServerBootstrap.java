@@ -41,6 +41,10 @@ import java.util.concurrent.TimeUnit;
 /**
  * {@link Bootstrap} sub-class which allows easy bootstrap of {@link ServerChannel}
  *
+ *
+ * 在server接受一个Client的连接后，会创建一个对应的Channel对象，因此，ServerBootstrap的childOptions,
+ * childAttrs,childGroup,childHandler属性，都是这种Channel的可选项集合，属性集合，EventLoopGroup对象，处理器
+ *
  */
 public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerChannel> {
 
@@ -48,9 +52,14 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
 
     // The order in which child ChannelOptions are applied is important they may depend on each other for validation
     // purposes.
+    //子Channel的可选项集合
     private final Map<ChannelOption<?>, Object> childOptions = new LinkedHashMap<ChannelOption<?>, Object>();
+    //子Channel的属性集合
     private final Map<AttributeKey<?>, Object> childAttrs = new ConcurrentHashMap<AttributeKey<?>, Object>();
+
+    //启动类配置对象
     private final ServerBootstrapConfig config = new ServerBootstrapConfig(this);
+    //子Channel的EventLoopGroup对象
     private volatile EventLoopGroup childGroup;
     private volatile ChannelHandler childHandler;
 
@@ -121,6 +130,8 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
 
     /**
      * Set the {@link ChannelHandler} which is used to serve the request for the {@link Channel}'s.
+     *
+     * 设置子Channel的处理器
      */
     public ServerBootstrap childHandler(ChannelHandler childHandler) {
         this.childHandler = ObjectUtil.checkNotNull(childHandler, "childHandler");
@@ -162,6 +173,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         });
     }
 
+    //校验配置是否正确
     @Override
     public ServerBootstrap validate() {
         super.validate();
